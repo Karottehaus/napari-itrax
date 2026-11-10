@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "napari-itrax"
+version = "0.1.0"
+description = "Process ITRAX XRF scans and calibrate sediment core photographs in napari"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = ["Framework :: napari", "Programming Language :: Python :: 3"]
+dependencies = ["napari>=0.6", "qtpy>=2.4", "numpy", "pandas>=2.2", "openpyxl", "natsort", "pillow", "matplotlib"]
+
+[project.optional-dependencies]
+testing = ["pytest", "pytest-qt", "PyQt6", "build", "ruff", "mypy", "pandas-stubs"]
+
+[project.entry-points."napari.manifest"]
+napari-itrax = "napari_itrax:napari.yaml"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+napari_itrax = ["napari.yaml", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "ANN"]
+ignore = ["ANN401"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+
+
+# Qt ships generated binding stubs; check our interfaces without parsing those stubs.
+[[tool.mypy.overrides]]
+module = ["PyQt6.*", "qtpy.*", "napari.*", "superqt.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
