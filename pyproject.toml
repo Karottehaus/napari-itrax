@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "napari-itrax"
 version = "0.1.0"
+authors = [{ name = "Hanyu Xu (University of Bern)" }]
 description = "Process ITRAX XRF scans and calibrate sediment core photographs in napari"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +13,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 classifiers = ["Framework :: napari", "Programming Language :: Python :: 3"]
 dependencies = ["napari>=0.6", "qtpy>=2.4", "numpy", "pandas>=2.2", "openpyxl", "natsort", "pillow", "matplotlib"]
+
+[project.urls]
+Repository = "https://github.com/Karottehaus/napari-itrax"
 
 [project.optional-dependencies]
 testing = ["pytest", "pytest-qt", "PyQt6", "build", "ruff", "mypy", "pandas-stubs"]
