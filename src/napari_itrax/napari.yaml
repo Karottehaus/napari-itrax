@@ -1,0 +1,15 @@
+name: napari-itrax
+display_name: napari ITRAX
+contributions:
+  commands:
+    - id: napari-itrax.processing
+      title: Open ITRAX Processing
+      python_name: napari_itrax.widgets.processing:ProcessingWidget
+    - id: napari-itrax.ruler
+      title: Open Photo Ruler
+      python_name: napari_itrax.widgets.ruler:RulerWidget
+  widgets:
+    - command: napari-itrax.processing
+      display_name: ITRAX Processing
+    - command: napari-itrax.ruler
+      display_name: Photo Ruler
