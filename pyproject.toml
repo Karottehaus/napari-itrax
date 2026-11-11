@@ -27,7 +27,7 @@ napari-itrax = "napari_itrax:napari.yaml"
 where = ["src"]
 
 [tool.setuptools.package-data]
-napari_itrax = ["napari.yaml", "py.typed"]
+napari_itrax = ["napari.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
