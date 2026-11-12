@@ -7,7 +7,7 @@ from typing import cast
 import numpy as np
 import pandas as pd
 
-from .models import (
+from napari_itrax.models import (
     GROUP_COLUMN,
     INTERNAL_COLUMNS,
     INVALID_EMPTY,
@@ -18,8 +18,8 @@ from .models import (
     ScanResult,
     SelectionTables,
 )
-from .readers import core_group, describe_items, format_number, parse_number
-from .scans import TUBES
+from napari_itrax.readers import core_group, describe_items, format_number, parse_number
+from napari_itrax.scans import TUBES
 
 ELEMENT_SYMBOLS = set(
     "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr "

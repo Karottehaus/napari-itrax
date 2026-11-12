@@ -7,8 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from ..imaging import ruler
-from ..reporting.exports import write_run_info
+from napari_itrax.imaging import ruler
+from napari_itrax.reporting.exports import write_run_info
 
 
 @dataclass(frozen=True)

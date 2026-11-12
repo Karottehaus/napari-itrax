@@ -6,7 +6,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from ..models import RunInfo
+from napari_itrax.models import RunInfo
 
 NAME = "_README - what is where.pdf"
 

@@ -13,7 +13,7 @@ from matplotlib.ticker import MaxNLocator, MultipleLocator
 from numpy.typing import NDArray
 from PIL import Image
 
-from ..models import GROUP_COLUMN, SCAN_COLUMN, Photo, ScanPhoto
+from napari_itrax.models import GROUP_COLUMN, SCAN_COLUMN, Photo, ScanPhoto
 
 Image.MAX_IMAGE_PIXELS = None
 LINE = "#1F4E79"

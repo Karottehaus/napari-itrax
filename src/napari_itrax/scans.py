@@ -8,8 +8,8 @@ from typing import cast
 import numpy as np
 import pandas as pd
 
-from .models import ITRAXpyError, Scan, ScanFolder, Settings
-from .readers import TD_COLUMNS, describe_items, format_number, has_value, normalise_name, parse_number
+from napari_itrax.models import ITRAXpyError, Scan, ScanFolder, Settings
+from napari_itrax.readers import TD_COLUMNS, describe_items, format_number, has_value, normalise_name, parse_number
 
 TUBES = ["Cr", "Mo", "Rh", "Ag"]
 

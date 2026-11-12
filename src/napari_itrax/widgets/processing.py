@@ -26,10 +26,10 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from ..analysis import DEFAULT_LOG_RATIOS, DEFAULT_RATIOS
-from ..imaging.images import find_optical_image, photo_scale
-from ..models import INVALID_POINTS, Settings
-from ..workflows.processing import (
+from napari_itrax.analysis import DEFAULT_LOG_RATIOS, DEFAULT_RATIOS
+from napari_itrax.imaging.images import find_optical_image, photo_scale
+from napari_itrax.models import INVALID_POINTS, Settings
+from napari_itrax.workflows.processing import (
     ExportOptions,
     PreparedRun,
     ProcessingOptions,
@@ -40,7 +40,7 @@ from ..workflows.processing import (
     process_run,
     quality_table,
 )
-from .common import PathEdit, WorkerWidget, combo, optional_number
+from napari_itrax.widgets.common import PathEdit, WorkerWidget, combo, optional_number
 
 
 class ProcessingWidget(WorkerWidget):

@@ -7,7 +7,7 @@ import re
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from ..readers import read_document_file
+from napari_itrax.readers import read_document_file
 
 # Local instrument line scans can exceed Pillow's default image-size limit.
 Image.MAX_IMAGE_PIXELS = None

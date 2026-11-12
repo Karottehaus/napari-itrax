@@ -13,7 +13,7 @@ import pandas as pd
 from natsort import natsorted, ns
 from openpyxl.utils.exceptions import InvalidFileException
 
-from .models import (
+from napari_itrax.models import (
     GROUP_COLUMN,
     SCAN_COLUMN,
     Document,

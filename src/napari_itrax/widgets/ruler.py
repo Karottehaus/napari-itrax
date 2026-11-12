@@ -21,10 +21,10 @@ from qtpy.QtWidgets import (
     QTableWidgetItem,
 )
 
-from ..imaging import ruler
-from ..workflows.ruler import PhotoJob, export_rulers
-from ..imaging.ruler import measured_scale
-from .common import PathEdit, WorkerWidget, combo, optional_number
+from napari_itrax.imaging import ruler
+from napari_itrax.workflows.ruler import PhotoJob, export_rulers
+from napari_itrax.imaging.ruler import measured_scale
+from napari_itrax.widgets.common import PathEdit, WorkerWidget, combo, optional_number
 
 
 class RulerWidget(WorkerWidget):
