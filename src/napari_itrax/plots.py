@@ -1,7 +1,5 @@
 from __future__ import annotations
-from numpy.typing import NDArray
-from matplotlib.axes import Axes
-from .types import Photo, ScanPhoto
+
 import math
 import os
 import re
@@ -9,11 +7,13 @@ import textwrap
 
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator, MultipleLocator
+from numpy.typing import NDArray
 from PIL import Image
 
-from .pipeline import GROUP_COLUMN, SCAN_COLUMN
+from .models import GROUP_COLUMN, SCAN_COLUMN, Photo, ScanPhoto
 
 Image.MAX_IMAGE_PIXELS = None
 LINE = "#1F4E79"
@@ -268,7 +268,7 @@ def write_profiles(
 
     A core of several sections (one CoreID) whose sections do not overlap in depth also gets an overview of the whole
     core, '<core name>_whole-core_<name>.png'. figures: {name: table with the values, rows as in combined}.
-    scans: list of (scan label, core group, settings text, photo) from pipeline.scan_photos, photo being
+    scans: list of (scan label, core group, settings text, photo) from scan_photos, photo being
     (image path, top mm, bottom mm) or None. Notes for the user are added to notes. Returns the paths written.
     """
     notes = [] if notes is None else notes

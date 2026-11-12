@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
-from typing import cast, Literal
+from typing import Literal, cast
 
 import napari
 import numpy as np
@@ -16,18 +16,19 @@ from qtpy.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
-    QLineEdit,
     QLabel,
+    QLineEdit,
     QMessageBox,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from .. import pipeline
-from ..types import Settings
+from ..analysis import DEFAULT_LOG_RATIOS, DEFAULT_RATIOS
+from ..images import find_optical_image, photo_scale
+from ..models import INVALID_POINTS, Settings
 from ..workflow import (
     ExportOptions,
     PreparedRun,
@@ -84,7 +85,7 @@ class ProcessingWidget(WorkerWidget):
             control.setChecked(checked)
             self.flags[key] = control
             form.addRow(control)
-        self.invalid = combo(list(pipeline.INVALID_POINTS))
+        self.invalid = combo(list(INVALID_POINTS))
         self.suspect = QLineEdit("1.5")
         self.file_format = combo(["xlsx", "csv"])
         self.core_workbooks = QCheckBox("One workbook per scan with treatment tabs (xlsx)")
@@ -123,8 +124,8 @@ class ProcessingWidget(WorkerWidget):
             buttons.addWidget(self.button(text, action))
         layout.addLayout(buttons)
         export_form = QFormLayout(export_page)
-        self.ratios = QLineEdit(str(self.preferences.value("ratios", pipeline.DEFAULT_RATIOS)))
-        self.log_ratios = QLineEdit(str(self.preferences.value("log_ratios", pipeline.DEFAULT_LOG_RATIOS)))
+        self.ratios = QLineEdit(str(self.preferences.value("ratios", DEFAULT_RATIOS)))
+        self.log_ratios = QLineEdit(str(self.preferences.value("log_ratios", DEFAULT_LOG_RATIOS)))
         self.inc_coh = QCheckBox("Include inc/coh ratio")
         self.detail = QCheckBox("50 cm detail pages for long cores")
         self.detail.setChecked(self.preferences.value("detail", False, type=bool))
@@ -314,12 +315,12 @@ class ProcessingWidget(WorkerWidget):
         if self.result is None or self.scans.currentIndex() < 0:
             raise ValueError("Process scans and select a photo first.")
         scan = self.result.prepared.scans[self.scans.currentData()]
-        path = pipeline._optical_image(scan.folder)
+        path = find_optical_image(scan.folder)
         if path is None:
             raise ValueError(f"No optical photo found for {scan.label}.")
         with Image.open(path) as image:
             data = np.asarray(image.convert("RGB").transpose(Image.Transpose.ROTATE_180))
-        calibration = pipeline.photo_scale(scan, data.shape[1])
+        calibration = photo_scale(scan, data.shape[1])
         scale = (calibration[1], calibration[1]) if calibration else (1.0, 1.0)
         translate = (0.0, calibration[0]) if calibration else (0.0, 0.0)
         if self.photo_layer is not None and self.photo_layer in self.viewer.layers:

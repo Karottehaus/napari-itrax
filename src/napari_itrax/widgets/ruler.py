@@ -5,11 +5,12 @@ from pathlib import Path
 
 import napari
 import numpy as np
-from napari.layers import Image as ImageLayer, Points
+from napari.layers import Image as ImageLayer
+from napari.layers import Points
 from napari.utils.events import Event
 from PIL import Image
-from qtpy.QtGui import QCloseEvent
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QCloseEvent
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -21,7 +22,8 @@ from qtpy.QtWidgets import (
 )
 
 from .. import ruler
-from ..photo_workflow import PhotoJob, export_rulers, measured_scale
+from ..photo_workflow import PhotoJob, export_rulers
+from ..ruler import measured_scale
 from .common import PathEdit, WorkerWidget, combo, optional_number
 
 
