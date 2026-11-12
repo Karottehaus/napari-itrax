@@ -7,7 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import pipeline, ruler
+from ..imaging import ruler
+from ..reporting.exports import write_run_info
 
 
 @dataclass(frozen=True)
@@ -18,15 +19,6 @@ class PhotoJob:
     core_depth_cm: float | None = None
     photo_depth: bool = True
     vertical: bool = False
-
-
-def measured_scale(length_mm: float, start: float, end: float) -> float:
-    """Calibrate along the core axis, not the diagonal between markers."""
-    if not all(math.isfinite(v) for v in (length_mm, start, end)) or length_mm <= 0 or abs(end - start) < 1:
-        raise ValueError(
-            "Use a positive finite reference length and markers at least one pixel apart along the core."
-        )
-    return length_mm / abs(end - start)
 
 
 def export_rulers(
@@ -72,5 +64,5 @@ def export_rulers(
         written.append(Path(target))
         if progress is not None:
             progress((index + 1) / len(jobs))
-    pipeline.write_run_info(str(folder), "Photo rulers", [repr(job) for job in jobs])
+    write_run_info(str(folder), "Photo rulers", [repr(job) for job in jobs])
     return written

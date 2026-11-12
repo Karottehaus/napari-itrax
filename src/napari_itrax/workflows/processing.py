@@ -11,8 +11,46 @@ from typing import Literal
 
 import pandas as pd
 
-from . import __version__, pipeline, readme_pdf
-from .types import RunInfo, Settings
+from .. import __version__
+from ..reporting import plots, readme_pdf
+from ..analysis import (
+    DEFAULT_LOG_RATIOS,
+    DEFAULT_RATIOS,
+    all_zero,
+    calculate_selection,
+    check_depths,
+    combine,
+    cv_percent,
+    flag_suspect,
+    is_element,
+    main_rows,
+    noise_percent,
+    overlaps,
+    parse_ratio_pairs,
+    repeat_percent,
+    zeroes_percent,
+)
+from ..reporting.exports import (
+    output_folders,
+    prepare_output_folders,
+    write_run_info,
+    write_scan_tables,
+    write_selection_tables,
+)
+from ..imaging.images import save_scan_images, scan_photos
+from ..models import (
+    GROUP_COLUMN,
+    INVALID_POINTS,
+    OutputFolders,
+    RunInfo,
+    Scan,
+    ScanResult,
+    Settings,
+)
+from ..readers import check_scans, find_scan_folders, load_true_depth, read_scans
+from ..scans import assign_scans, resolve_settings, true_depth_template
+
+log = logging.getLogger("itraxpy")
 
 
 @dataclass(frozen=True)
@@ -36,14 +74,17 @@ class ProcessingOptions:
 @dataclass
 class PreparedRun:
     options: ProcessingOptions
-    scans: list[pipeline.Scan]
+    scans: list[Scan]
     true_depth: pd.DataFrame
-    folders: pipeline.OutputFolders
+    folders: OutputFolders
     label: str
     settings: str
     tube: str
     notes: list[str]
-    tables: list[pipeline.ScanResult]
+    tables: list[ScanResult]
+    combined: pd.DataFrame
+    elements: list[str]
+    meta_columns: list[str]
 
 
 @dataclass
@@ -59,14 +100,14 @@ class ProcessingResult:
 class ExportOptions:
     selected: list[str]
     include_inc_coh: bool = False
-    ratios: str = pipeline.DEFAULT_RATIOS
-    log_ratios: str = pipeline.DEFAULT_LOG_RATIOS
+    ratios: str = DEFAULT_RATIOS
+    log_ratios: str = DEFAULT_LOG_RATIOS
     detail_pages: bool = False
 
 
 def prepare_run(options: ProcessingOptions) -> PreparedRun:
     """Read and validate inputs without changing the output directory."""
-    if options.invalid_points not in pipeline.INVALID_POINTS:
+    if options.invalid_points not in INVALID_POINTS:
         raise ValueError("Unknown invalid-point policy.")
     if options.file_format not in ("xlsx", "csv"):
         raise ValueError("File format must be xlsx or csv.")
@@ -82,20 +123,25 @@ def prepare_run(options: ProcessingOptions) -> PreparedRun:
         if value is not None and (not math.isfinite(value) or value <= 0):
             raise ValueError(f"{key} must be finite and positive, or empty.")
     notes: list[str] = []
-    depth, raw = pipeline.load_true_depth(str(options.true_depth), notes)
-    found = pipeline.find_scan_folders(str(options.input_folder), notes)
-    scans = pipeline.assign_scans(found, depth, options.replicates, notes)
-    settings, tube = pipeline.resolve_settings(scans, options.settings, notes)
-    pipeline.check_scans(scans)
-    tables = pipeline.read_scans(scans, notes, options.suspect_factor)
-    pipeline.combine(tables, options.invalid_points, [])
+    depth, raw = load_true_depth(str(options.true_depth), notes)
+    found = find_scan_folders(str(options.input_folder), notes)
+    scans = assign_scans(found, depth, options.replicates, notes)
+    settings, tube = resolve_settings(scans, options.settings, notes)
+    check_scans(scans)
+    tables = read_scans(scans, notes)
+    if options.suspect_factor is not None:
+        flag_suspect(tables, options.suspect_factor, notes)
+    check_depths(tables, notes)
+    combined, elements, meta = combine(tables, options.invalid_points, notes)
     label = options.input_folder.resolve().name
-    folders = pipeline.output_folders(str(options.output_folder), label)
+    folders = output_folders(str(options.output_folder), label)
     target = Path(folders.root).resolve()
     sources = [options.input_folder.resolve(), options.true_depth.resolve()]
     if any(source == target or target in source.parents for source in sources):
         raise ValueError("The results directory must not contain the input data or True Depth file.")
-    return PreparedRun(options, scans, raw, folders, label, settings, tube, notes, tables)
+    return PreparedRun(
+        options, scans, raw, folders, label, settings, tube, notes, tables, combined, elements, meta
+    )
 
 
 @contextmanager
@@ -104,15 +150,15 @@ def run_logging(folder: str, enabled: bool) -> Iterator[None]:
     handler = logging.FileHandler(Path(folder) / "itrax.log", encoding="utf-8") if enabled else None
     if handler is not None:
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-        pipeline.log.addHandler(handler)
+        log.addHandler(handler)
     try:
         yield
     except Exception:
-        pipeline.log.exception("ITRAX operation failed")
+        log.exception("ITRAX operation failed")
         raise
     finally:
         if handler is not None:
-            pipeline.log.removeHandler(handler)
+            log.removeHandler(handler)
             handler.close()
 
 
@@ -127,21 +173,27 @@ def process_run(
     o = p.options
     if Path(p.folders.root).exists() and not overwrite:
         raise FileExistsError(p.folders.root)
-    pipeline.prepare_output_folders(p.folders, o.high_resolution, o.ruler_images, o.argon_images)
+    prepare_output_folders(p.folders, o.high_resolution, o.ruler_images, o.argon_images)
     with run_logging(p.folders.root, o.error_log):
         tables = p.tables
-        pipeline.save_scan_images(
-            tables, p.folders, o.high_resolution, p.notes, progress, o.ruler_images, o.argon_images
+        save_scan_images(
+            tables,
+            p.folders,
+            o.high_resolution,
+            p.notes,
+            progress=progress,
+            ruler=o.ruler_images,
+            argon=o.argon_images,
         )
-        combined, elements, meta = pipeline.combine(tables, o.invalid_points, p.notes)
-        pipeline.write_scan_tables(tables, p.folders, o.file_format)
+        combined = p.combined
+        write_scan_tables(tables, p.folders, o.file_format)
         measurements = sum(len(table) for _, table, _ in tables)
         info: RunInfo = dict(
             version=__version__,
             data_folder=str(o.input_folder),
             td_file=str(o.true_depth),
             scans=len(p.scans),
-            cores=int(combined[pipeline.GROUP_COLUMN].nunique()),
+            cores=int(combined[GROUP_COLUMN].nunique()),
             measurements=measurements,
             left_out=measurements - len(combined),
             settings=p.settings,
@@ -156,7 +208,7 @@ def process_run(
             ],
             invalid_points=o.invalid_points,
         )
-        pipeline.write_run_info(
+        write_run_info(
             p.folders.root,
             f"Run {datetime.now().isoformat(timespec='seconds')}",
             [f"napari-itrax {__version__}", repr(o), p.settings]
@@ -164,46 +216,54 @@ def process_run(
             p.notes,
         )
         readme_pdf.write_readme(p.folders.root, p.label, info)
-        return ProcessingResult(p, combined, elements, meta, info)
+        return ProcessingResult(p, combined, p.elements, p.meta_columns, info)
 
 
 def export_selection(result: ProcessingResult, options: ExportOptions) -> list[str]:
     """Export scientific tables, profile plots, and the updated results guide."""
     p = result.prepared
-    if not options.selected or any(
-            e not in result.elements or not pipeline.is_element(e) for e in options.selected
-    ):
+    if not options.selected or any(e not in result.elements or not is_element(e) for e in options.selected):
         raise ValueError("Select at least one measured element; every selection must exist in this run.")
-    ratios = pipeline.parse_ratio_pairs(options.ratios)
-    logs = pipeline.parse_ratio_pairs(options.log_ratios)
-    missing = {
-        e for pair in ratios + logs for e in pair if e not in result.elements or not pipeline.is_element(e)
-    }
+    ratios = parse_ratio_pairs(options.ratios)
+    logs = parse_ratio_pairs(options.log_ratios)
+    missing = {e for pair in ratios + logs for e in pair if e not in result.elements or not is_element(e)}
     if missing:
         raise ValueError(f"Ratio elements absent from this run: {', '.join(sorted(missing))}")
     with run_logging(p.folders.root, p.options.error_log):
-        notes = pipeline.write_selected_outputs(
+        tables = calculate_selection(
             result.combined,
             result.meta_columns,
             options.selected,
-            p.tube,
-            options.include_inc_coh,
+            tube=p.tube,
+            add_inc_coh=options.include_inc_coh,
+            log_ratios=logs,
+            ratios=ratios,
+        )
+        write_selection_tables(
+            tables,
+            combined=result.combined,
+            core_label=p.label,
+            settings=p.settings,
+            true_depth=p.true_depth,
+            output_folder=p.folders.root,
+            file_format=p.options.file_format,
+            core_workbooks=p.options.core_workbooks,
+        )
+        notes = tables.notes
+        plots.write_profiles(
+            str(Path(p.folders.root) / f"{p.label}_plots"),
+            result.combined,
             p.label,
             p.settings,
-            p.true_depth,
-            p.folders.root,
-            p.options.file_format,
-            logs,
-            pipeline.scan_photos(p.scans),
-            True,
-            ratios,
+            {"counts": tables.counts, "ratios": tables.ratios},
+            scan_photos(p.scans),
             options.detail_pages,
-            p.options.core_workbooks,
+            notes,
         )
         result.info["selected"] = options.selected
         result.info["ratios"] = ratios
         result.info["log_ratios"] = logs
-        pipeline.write_run_info(p.folders.root, "Export selected elements", [repr(options)], notes)
+        write_run_info(p.folders.root, "Export selected elements", [repr(options)], notes)
         readme_pdf.write_readme(p.folders.root, p.label, result.info)
     return notes
 
@@ -213,25 +273,23 @@ def quality_table(result: ProcessingResult) -> pd.DataFrame:
     data = result.combined
     shown = [
         e
-        for e, zero in zip(result.elements, pipeline.all_zero(data[result.elements]), strict=True)
-        if not zero and pipeline.is_element(e)
+        for e, zero in zip(result.elements, all_zero(data[result.elements]), strict=True)
+        if not zero and is_element(e)
     ]
-    main = pipeline.main_rows(data, shown)
+    main = main_rows(data, shown)
     if main.empty:
         main = data
     return pd.DataFrame(
         {
             "Element": shown,
-            "Zeros": pipeline.zeroes_percent(main[shown]),
-            "CV": pipeline.cv_percent(main[shown]),
-            "Noise": pipeline.noise_percent(main, shown),
-            "Repeat": pipeline.repeat_percent(data, shown) or [None] * len(shown),
-            "Overlap": pipeline.overlaps(main, shown, result.prepared.tube),
+            "Zeros": zeroes_percent(main[shown]),
+            "CV": cv_percent(main[shown]),
+            "Noise": noise_percent(main, shown),
+            "Repeat": repeat_percent(data, shown) or [None] * len(shown),
+            "Overlap": overlaps(main, shown, result.prepared.tube),
         }
     )
 
 
 def create_template(input_folder: Path, destination: Path) -> None:
-    pipeline.true_depth_template(pipeline.find_scan_folders(str(input_folder))).to_excel(
-        destination, index=False
-    )
+    true_depth_template(find_scan_folders(str(input_folder))).to_excel(destination, index=False)

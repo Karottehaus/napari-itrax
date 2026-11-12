@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import math
 import os
 import re
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-from .pipeline import _font, read_document_file
+from ..readers import read_document_file
 
+# Local instrument line scans can exceed Pillow's default image-size limit.
 Image.MAX_IMAGE_PIXELS = None
-IMAGE_TYPES = (".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp")
 # turns that bring the core top (where it is in the photo) to the left edge
 TO_LEFT = {
     "left": None,
@@ -86,16 +87,13 @@ def mm_per_pixel(mode: str, value: float | None, length_px: int) -> float | None
     return {"dpi": 25.4 / value, "pixel": value, "length": value / length_px}[mode]
 
 
-def measured_scale(length_mm: float | None, start_px: float, end_px: float) -> float | None:
-    """mm per pixel from two lines across the core placed on a ruler or object of known length in the photo, or None.
-
-    start_px, end_px: the lines' positions along the core in photo pixels (either order); length_mm: the real
-    distance between them.
-    """
-    distance = abs(end_px - start_px)
-    if length_mm is None or length_mm <= 0 or distance < 1:
-        return None
-    return length_mm / distance
+def measured_scale(length_mm: float, start: float, end: float) -> float:
+    """Calibrate along the core axis, not the diagonal between markers."""
+    if not all(math.isfinite(v) for v in (length_mm, start, end)) or length_mm <= 0 or abs(end - start) < 1:
+        raise ValueError(
+            "Use a positive finite reference length and markers at least one pixel apart along the core."
+        )
+    return length_mm / abs(end - start)
 
 
 def _steps(px_per_mm: float) -> tuple[int, int]:
@@ -128,7 +126,7 @@ def draw_rulers(
     )
     out.paste(image, (0, 0))
     draw = ImageDraw.Draw(out)
-    label_font, title_font = _font(round(20 * u)), _font(round(15 * u))
+    label_font, title_font = load_font(round(20 * u)), load_font(round(15 * u))
     px_per_mm = 1 / mm_per_px
     minor, label = _steps(px_per_mm)
 
@@ -215,3 +213,12 @@ def add_ruler(
     else:
         out.save(target)
     return target
+
+
+def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for name in ("arial.ttf", "DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            pass
+    return ImageFont.load_default()

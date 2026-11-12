@@ -1,198 +1,34 @@
 from __future__ import annotations
-from collections.abc import Iterable
-from .types import RunInfo
+
 import os
 import re
-import textwrap
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
 
-from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
+from ..models import RunInfo
 
 NAME = "_README - what is where.pdf"
-NAVY, ORANGE, INK, MUTED, RULE = "#0B3557", "#F07F23", "#1F2D3A", "#617487", "#D6DFE8"
-PAGE_W, PAGE_H, MARGIN = 8.27, 11.69, 0.75  # inches (A4)
-SANS, MONO = "DejaVu Sans", "DejaVu Sans Mono"
 
 
-class Pages:
-    """A few kinds of text placed down A4 pages, with page breaks (positions in inches from the top left)."""
+@dataclass
+class GuideContent:
+    """A snapshot of the guide's text and tables, independent of page layout."""
 
-    def __init__(self, path: str, footer: str) -> None:
-        self.pdf = PdfPages(path, metadata={"Title": "What is where", "Creator": "ITRAXpy Bern"})
-        self.footer, self.number = footer, 0
-        self.fig: Figure
-        self.new_page()
-
-    def new_page(self) -> None:
-        if self.number:
-            self.pdf.savefig(self.fig)
-        self.number += 1
-        self.fig, self.y = Figure(figsize=(PAGE_W, PAGE_H)), MARGIN
-        self._text(MARGIN, PAGE_H - 0.45, f"{self.footer}   ·   page {self.number}", 7.5, color=MUTED)
-
-    def close(self) -> None:
-        self.pdf.savefig(self.fig)
-        self.pdf.close()
-
-    def _text(
-            self,
-            x: float,
-            y: float,
-            text: str,
-            size: float,
-            weight: str = "normal",
-            color: str = INK,
-            family: str = SANS,
-    ) -> None:
-        self.fig.text(
-            x / PAGE_W,
-            1 - y / PAGE_H,
-            text,
-            fontsize=size,
-            fontweight=weight,
-            color=color,
-            family=family,
-            va="top",
-            ha="left",
-        )
-
-    def _line(self, x0: float, x1: float, y: float, color: str = RULE, width: float = 0.6) -> None:
-        self.fig.add_artist(Line2D([x0 / PAGE_W, x1 / PAGE_W], [1 - y / PAGE_H] * 2, color=color, lw=width))
-
-    @staticmethod
-    def wrap(text: str, width_in: float, size: float, mono: bool = False, bold: bool = False) -> list[str]:
-        """Lines of text that fit width_in inches at this font size (DejaVu: ~0.56 em a character, bold 0.63,
-        mono 0.6); file names are not broken at their hyphens."""
-        chars = max(10, int(width_in * 72 / (size * (0.6 if mono else 0.63 if bold else 0.56))))
-        # a line break in the text (e.g. between a folder and its file) is kept
-        return [
-            line
-            for part in text.split("\n")
-            for line in (textwrap.wrap(part, chars, break_on_hyphens=False) or [""])
-        ] or [""]
-
-    def formulas(
-            self,
-            rows: list[tuple[str, str, str | None, float]],
-            left_width: float = 1.45,
-            size: float = 8.6,
-            math_size: float = 11.5,
-    ) -> None:
-        """Rows of (name, text, formula, formula height in inches): the text, then the formula typeset (matplotlib
-        mathtext) below it."""
-        line = size * 1.38 / 72
-        for name, text, formula, tall in rows:
-            right = self.wrap(text, PAGE_W - 2 * MARGIN - left_width - 0.05, size)
-            height = len(right) * line + (tall + 0.1 if formula else 0) + 0.08
-            self.room(height)
-            self._text(MARGIN, self.y, name, size, "bold", NAVY)
-            for i, part in enumerate(right):
-                self._text(MARGIN + left_width, self.y + i * line, part, size)
-            if formula:
-                self._text(MARGIN + left_width + 0.15, self.y + len(right) * line + 0.07, formula, math_size)
-            self.y += height
-            self._line(MARGIN, PAGE_W - MARGIN, self.y - 0.04)
-        self.y += 0.08
-
-    def swatches(self, rows: list[tuple[str, str, str]], left_width: float = 1.45, size: float = 8.6) -> None:
-        """Rows of (fill colour, name, text): a small box in the colour, the name beside it, the text on the right."""
-        from matplotlib.patches import Rectangle
-
-        line = size * 1.38 / 72
-        for colour, name, text in rows:
-            right = self.wrap(text, PAGE_W - 2 * MARGIN - left_width - 0.05, size)
-            height = max(len(right) * line, 0.22) + 0.08
-            self.room(height)
-            w, h = 0.32, 0.17
-            self.fig.add_artist(
-                Rectangle(
-                    (MARGIN / PAGE_W, 1 - (self.y + h) / PAGE_H),
-                    w / PAGE_W,
-                    h / PAGE_H,
-                    transform=self.fig.transFigure,
-                    facecolor=colour,
-                    edgecolor="#9AA8B6",
-                    linewidth=0.6,
-                )
-            )
-            self._text(MARGIN + w + 0.1, self.y + 0.01, name, size, "bold", NAVY)
-            for i, part in enumerate(right):
-                self._text(MARGIN + left_width, self.y + i * line, part, size)
-            self.y += height
-            self._line(MARGIN, PAGE_W - MARGIN, self.y - 0.04)
-        self.y += 0.08
-
-    def room(self, height: float) -> None:
-        if self.y + height > PAGE_H - MARGIN:
-            self.new_page()
-
-    def title(self, text: str, facts: list[tuple[str, str, float]]) -> None:
-        """The title, then facts = [(label, value, width in inches)] side by side: a small label above its value."""
-        self._text(MARGIN, self.y, text, 19, "bold", NAVY)
-        self.y += 0.45
-        x, height = MARGIN, 0.0
-        for label, value, width in facts:
-            self._text(x, self.y, label.upper(), 7.2, "bold", MUTED)
-            lines = self.wrap(value, width - 0.15, 9.5)
-            for i, line in enumerate(lines):
-                self._text(x, self.y + 0.15 + i * 0.18, line, 9.5)
-            height = max(height, 0.15 + len(lines) * 0.18)
-            x += width
-        self.y += height
-        self._line(MARGIN, PAGE_W - MARGIN, self.y + 0.08, ORANGE, 2)
-        self.y += 0.28
-
-    def heading(self, text: str) -> None:
-        self.room(0.75)
-        self.y += 0.12
-        self._text(MARGIN, self.y, text, 12.5, "bold", NAVY)
-        self.y += 0.3
-
-    def paragraph(self, text: str, size: float = 9, color: str = INK) -> None:
-        lines = self.wrap(text, PAGE_W - 2 * MARGIN, size)
-        self.room(len(lines) * size * 1.4 / 72)
-        for line in lines:
-            self._text(MARGIN, self.y, line, size, color=color)
-            self.y += size * 1.4 / 72
-        self.y += 0.07
-
-    def rows(
-            self,
-            rows: list[tuple[str, str, int]],
-            left_width: float = 2.45,
-            size: float = 8.6,
-            mono_left: bool = False,
-            indent: float = 0.0,
-            rules: bool = True,
-            right_color: str = INK,
-    ) -> None:
-        """Two columns: a name (bold, or monospace) and its description; rows = [(name, text, level)].
-        rules=False: no line under each row and less space (for the folder tree)."""
-        line = size * 1.38 / 72
-        for name, text, level in rows:
-            x = MARGIN + indent + 0.22 * level
-            left = self.wrap(name, left_width - 0.22 * level - 0.12, size, mono_left, not mono_left)
-            right = self.wrap(text, PAGE_W - MARGIN - (MARGIN + left_width + indent) - 0.05, size)
-            height = max(len(left), len(right)) * line + (0.07 if rules else 0.015)
-            self.room(height)
-            for i, part in enumerate(left):
-                self._text(
-                    x,
-                    self.y + i * line,
-                    part,
-                    size,
-                    "normal" if mono_left else "bold",
-                    NAVY if not mono_left else INK,
-                    MONO if mono_left else SANS,
-                )
-            for i, part in enumerate(right):
-                self._text(MARGIN + left_width + indent, self.y + i * line, part, size, color=right_color)
-            self.y += height
-            if rules:
-                self._line(MARGIN + indent, PAGE_W - MARGIN, self.y - 0.04)
-        self.y += 0.08
+    title: str
+    footer: str
+    facts: list[tuple[str, str]]
+    summary: str
+    structure: list[tuple[str, str, int]]
+    file_uses: list[tuple[str, str, int]]
+    highlights_title: str
+    swatches: list[tuple[str, str]]
+    highlights_note: str
+    columns_title: str
+    columns_intro: str
+    headers: list[tuple[str, str, int]]
+    formulas_intro: str
+    formulas: list[tuple[str, str, str | None]]
 
 
 def _and(items: Iterable[str]) -> str:
@@ -627,42 +463,15 @@ def uses(root: str, label: str, info: RunInfo) -> list[tuple[str, str, int]]:
     return rows
 
 
-def write_readme(root: str, label: str, info: RunInfo) -> list[tuple[str, str, int]]:
-    """Write the guide into the results folder root; returns the rows of its folder tree (for the tests).
-
-    info: version, scans, cores, measurements, settings (the settings line), measured ([(date, hour)] per scan),
-    operator, file_format, suspect_factor, selected (None before Write element files), ratios, log_ratios.
-    """
+def build_guide(root: str, label: str, info: RunInfo) -> GuideContent:
+    """Read the results folder and assemble content without creating or changing files."""
     selected = info.get("selected")
     factor = info.get("suspect_factor")
-    footer = f"ITRAXpy Bern {info.get('version', '')}   ·   {label}_Results"
-    pages = Pages(os.path.join(root, NAME), footer)
-    # who measured when, and how it was processed (no directories of the computer: those are in run_info.txt)
-    pages.title(
-        f"ITRAX XRF results: {label}",
-        [
-            ("Measured", measured(info.get("measured") or []), 2.05),
-            ("Operator", info.get("operator") or "not given", 1.7),
-            ("Processed", f"{time.strftime('%Y-%m-%d')}, ITRAXpy Bern {info.get('version', '')}", 3.02),
-        ],
-    )
-    # a report paragraph for the researcher: what was measured, which elements were selected for further analyses
-    pages.paragraph(report(label, info), 9.5)
-
-    # the folder as it is, as a tree (the per-core files as chosen for this run)
-    pages.heading("Folder and file structure")
-    structure = tree(root, label, info)
-    pages.rows(structure, left_width=3.7, size=7.5, mono_left=True, rules=False, right_color=MUTED)
-
-    pages.heading("Which file for what")
-    pages.rows(uses(root, label, info))
-
-    # the shaded rows of the Excel tables, in their colours (pipeline.INVALID_FILL, SUSPECT_FILL)
     xlsx = info.get("file_format") != "csv"
     shaded = (
         f"{f'{factor:g}' if factor else 'the chosen factor'} x the median Ar of the valid points of the core"
     )
-    # what the option 'Invalid points' did with them in slct, norm, clr and the ratios (main.startApp)
+    # Describe the selected invalid-point policy.
     invalid = {
         "empty": "In slct, norm, clr and the ratios their rows and depths are kept, but the values are empty "
                  '(option "Invalid points"); the counts are in the XRF-results tables.',
@@ -673,11 +482,11 @@ def write_readme(root: str, label: str, info: RunInfo) -> list[tuple[str, str, i
         "Their values are unreliable; leave them out of interpretations (the option "
         '"Invalid points" can empty or leave out such rows).',
     )
-    pages.heading("Highlighted rows in the Excel tables" if xlsx else "Marked rows in the tables")
+    highlights_title = "Highlighted rows in the Excel tables" if xlsx else "Marked rows in the tables"
+    swatches: list[tuple[str, str]] = []
     if xlsx:
         swatches = [
             (
-                "#D9D9D9",
                 "Grey",
                 "validity = 0: the scanner could not fit the spectrum of this measurement well, "
                 f"e.g. at a crack, a gap or the end of the core. {invalid}",
@@ -686,7 +495,6 @@ def write_readme(root: str, label: str, info: RunInfo) -> list[tuple[str, str, i
         if factor:
             swatches.append(
                 (
-                    "#FFE0B2",
                     "Orange",
                     f"suspect = 1: Ar is above {shaded}. Air between the detector and the "
                     "sediment (a gap, crack or uneven surface) lowers the other elements, "
@@ -694,31 +502,28 @@ def write_readme(root: str, label: str, info: RunInfo) -> list[tuple[str, str, i
                     "is removed.",
                 )
             )
-        pages.swatches(swatches)
-        pages.paragraph(
+        highlights_note = (
             "A row that is both is grey. The same rows are marked in the columns validity and suspect, "
             "which you can use to filter."
             if factor
             else "No suspect points were marked (the suspect factor was empty). The column validity marks the "
-                 "grey rows, which you can use to filter.",
-            8.6,
-            MUTED,
+                 "grey rows, which you can use to filter."
         )
     else:
-        pages.paragraph(
-            "csv files have no colours: the column validity (0 = the spectrum could not be fitted well) "
-            + (
-                f"and the column suspect (1 = Ar above {shaded}, e.g. an air gap) mark these rows. "
-                if factor
-                else "marks these rows; no suspect points were marked. "
-            )
-            + f"validity = 0: {invalid}"
+        highlights_note = (
+                "csv files have no colours: the column validity (0 = the spectrum could not be fitted well) "
+                + (
+                    f"and the column suspect (1 = Ar above {shaded}, e.g. an air gap) mark these rows. "
+                    if factor
+                    else "marks these rows; no suspect points were marked. "
+                )
+                + f"validity = 0: {invalid}"
         )
 
     # the column headers as the tables of this run have them
     headers = columns(root, label, info)
-    pages.heading("Column headers in the Excel tables" if xlsx else "Column headers in the tables")
-    pages.paragraph(
+    columns_title = "Column headers in the Excel tables" if xlsx else "Column headers in the tables"
+    columns_intro = (
         f"The combined tables ({label}_slct, _norm and _ratios) start with two title rows, the name and "
         f"the scanner settings, so their column headers are in row 3. The per-core files and the tables in "
         f"{label}_XRF-results have them in row 1. norm and clr have the same columns as slct; the ratio "
@@ -727,61 +532,65 @@ def write_readme(root: str, label: str, info: RunInfo) -> list[tuple[str, str, i
         else "The tables are written when the elements are selected (Write element files); this guide then lists "
              "their column headers."
     )
-    if headers:
-        pages.rows(headers, left_width=2.3, size=8.4, mono_left=True)
-
-    pages.heading("How the numbers are calculated")
     n = len(selected) if selected else None
-    pages.paragraph(
+    formulas_intro = (
         r"$x_i$ = the counts of element $i$ in one measurement; $n$ = the number of selected elements"
-        f"{f' (here {n})' if n else ''}; the sums run over the selected elements of that measurement.",
-        8.6,
-        MUTED,
+        f"{f' (here {n})' if n else ''}; the sums run over the selected elements of that measurement."
     )
-    pages.formulas(
-        [
-            (
-                "Depth",
-                "The true depth of a measurement, in mm.",
-                r"$\mathrm{DepthID} = \mathrm{position} - \mathrm{StartPosition} + \mathrm{StartID}$",
-                0.2,
-            ),
-            (
-                "Zeroes",
-                "For norm, clr and the log-ratios only, a 0 is replaced by half the smallest positive count of "
-                "that element in the same core (CoreID); a core without any uses the smallest of all cores. With "
-                "invalid points empty or left out, only the valid points count. slct keeps the raw counts.",
-                r"$x_i = 0 \quad\rightarrow\quad x_i = \dfrac{1}{2}\ \min\,(x_i > 0)\ \ \mathrm{in\ the\ same\ core}$",
-                0.42,
-            ),
-            (
-                "norm",
-                "Each selected element in % of the sum of the selected elements; every row adds up to 100 %.",
-                r"$\mathrm{norm}_i = \dfrac{x_i}{\sum_j\ x_j} \times 100\ \%$",
-                0.58,
-            ),
-            (
-                "clr",
-                "The log of each element minus the mean log of the selected elements; every row adds up to 0. "
-                "The better choice for correlations and PCA.",
-                r"$\mathrm{clr}_i = \ln x_i - \dfrac{1}{n}\ \sum_j\ \ln x_j$",
-                0.42,
-            ),
-            (
-                "Ratios",
-                "Of the raw counts (empty where the divisor is 0), the log-ratios with zeroes replaced as above; "
-                "inc and coh are the scatter peaks of the tube.",
-                r"$\dfrac{a}{b}, \qquad \ln \dfrac{a}{b}, \qquad \dfrac{x_i}{\mathrm{inc} + \mathrm{coh}}, \qquad "
-                r"\dfrac{x_i}{\mathrm{kcps}}, \qquad \dfrac{\mathrm{coh}}{\mathrm{inc}}$",
-                0.45,
-            ),
-            (
-                "Missing values",
-                "A measurement without a value for one of the selected elements gets no norm and no clr.",
-                None,
-                0,
-            ),
-        ]
+    formulas: list[tuple[str, str, str | None]] = [
+        (
+            "Depth",
+            "The true depth of a measurement, in mm.",
+            r"$\mathrm{DepthID} = \mathrm{position} - \mathrm{StartPosition} + \mathrm{StartID}$",
+        ),
+        (
+            "Zeroes",
+            "For norm, clr and the log-ratios only, a 0 is replaced by half the smallest positive count of "
+            "that element in the same core (CoreID); a core without any uses the smallest of all cores. With "
+            "invalid points empty or left out, only the valid points count. slct keeps the raw counts.",
+            r"$x_i = 0 \quad\rightarrow\quad x_i = \dfrac{1}{2}\ \min\,(x_i > 0)\ \ \mathrm{in\ the\ same\ core}$",
+        ),
+        (
+            "norm",
+            "Each selected element in % of the sum of the selected elements; every row adds up to 100 %.",
+            r"$\mathrm{norm}_i = \dfrac{x_i}{\sum_j\ x_j} \times 100\ \%$",
+        ),
+        (
+            "clr",
+            "The log of each element minus the mean log of the selected elements; every row adds up to 0. "
+            "The better choice for correlations and PCA.",
+            r"$\mathrm{clr}_i = \ln x_i - \dfrac{1}{n}\ \sum_j\ \ln x_j$",
+        ),
+        (
+            "Ratios",
+            "Of the raw counts (empty where the divisor is 0), the log-ratios with zeroes replaced as above; "
+            "inc and coh are the scatter peaks of the tube.",
+            r"$\dfrac{a}{b}, \qquad \ln \dfrac{a}{b}, \qquad \dfrac{x_i}{\mathrm{inc} + \mathrm{coh}}, \qquad "
+            r"\dfrac{x_i}{\mathrm{kcps}}, \qquad \dfrac{\mathrm{coh}}{\mathrm{inc}}$",
+        ),
+        (
+            "Missing values",
+            "A measurement without a value for one of the selected elements gets no norm and no clr.",
+            None,
+        ),
+    ]
+    return GuideContent(
+        title=f"ITRAX XRF results: {label}",
+        footer=f"ITRAXpy Bern {info.get('version', '')}   ·   {label}_Results",
+        facts=[
+            ("Measured", measured(info.get("measured") or [])),
+            ("Operator", info.get("operator") or "not given"),
+            ("Processed", f"{time.strftime('%Y-%m-%d')}, ITRAXpy Bern {info.get('version', '')}"),
+        ],
+        summary=report(label, info),
+        structure=tree(root, label, info),
+        file_uses=uses(root, label, info),
+        highlights_title=highlights_title,
+        swatches=swatches,
+        highlights_note=highlights_note,
+        columns_title=columns_title,
+        columns_intro=columns_intro,
+        headers=headers,
+        formulas_intro=formulas_intro,
+        formulas=formulas,
     )
-    pages.close()
-    return structure
