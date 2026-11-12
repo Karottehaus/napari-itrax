@@ -29,7 +29,7 @@ from qtpy.QtWidgets import (
 from ..analysis import DEFAULT_LOG_RATIOS, DEFAULT_RATIOS
 from ..images import find_optical_image, photo_scale
 from ..models import INVALID_POINTS, Settings
-from ..workflow import (
+from ..processing_workflow import (
     ExportOptions,
     PreparedRun,
     ProcessingOptions,

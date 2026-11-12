@@ -22,7 +22,7 @@ from qtpy.QtWidgets import (
 )
 
 from .. import ruler
-from ..photo_workflow import PhotoJob, export_rulers
+from ..ruler_workflow import PhotoJob, export_rulers
 from ..ruler import measured_scale
 from .common import PathEdit, WorkerWidget, combo, optional_number
 
