@@ -21,9 +21,9 @@ from qtpy.QtWidgets import (
     QTableWidgetItem,
 )
 
-from .. import ruler
-from ..ruler_workflow import PhotoJob, export_rulers
-from ..ruler import measured_scale
+from ..imaging import ruler
+from ..workflows.ruler import PhotoJob, export_rulers
+from ..imaging.ruler import measured_scale
 from .common import PathEdit, WorkerWidget, combo, optional_number
 
 

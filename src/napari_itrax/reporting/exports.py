@@ -12,7 +12,7 @@ import pandas as pd
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .models import (
+from ..models import (
     INTERNAL_COLUMNS,
     SCAN_COLUMN,
     ITRAXpyError,

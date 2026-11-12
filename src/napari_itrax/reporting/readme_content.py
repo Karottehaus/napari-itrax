@@ -6,7 +6,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .models import RunInfo
+from ..models import RunInfo
 
 NAME = "_README - what is where.pdf"
 

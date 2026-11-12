@@ -10,10 +10,10 @@ from natsort import natsorted, ns
 from numpy.typing import NDArray
 from PIL import Image, ImageDraw, ImageFont
 
-from .models import ArgonCurve, OutputFolders, Scan, ScanPhoto, ScanResult
-from .readers import core_group, describe_items, format_number, has_value, id_text, parse_number
+from ..models import ArgonCurve, OutputFolders, Scan, ScanPhoto, ScanResult
+from ..readers import core_group, describe_items, format_number, has_value, id_text, parse_number
 from .ruler import load_font
-from .scans import settings_text
+from ..scans import settings_text
 
 IMAGE_EXTENSIONS = (".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp")
 

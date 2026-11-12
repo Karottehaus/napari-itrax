@@ -7,7 +7,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from .models import RunInfo
+from ..models import RunInfo
 from .readme_content import NAME, GuideContent, build_guide
 
 NAVY, ORANGE, INK, MUTED, RULE = "#0B3557", "#F07F23", "#1F2D3A", "#617487", "#D6DFE8"

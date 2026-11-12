@@ -11,8 +11,9 @@ from typing import Literal
 
 import pandas as pd
 
-from . import __version__, plots, readme_pdf
-from .analysis import (
+from .. import __version__
+from ..reporting import plots, readme_pdf
+from ..analysis import (
     DEFAULT_LOG_RATIOS,
     DEFAULT_RATIOS,
     all_zero,
@@ -29,15 +30,15 @@ from .analysis import (
     repeat_percent,
     zeroes_percent,
 )
-from .exports import (
+from ..reporting.exports import (
     output_folders,
     prepare_output_folders,
     write_run_info,
     write_scan_tables,
     write_selection_tables,
 )
-from .images import save_scan_images, scan_photos
-from .models import (
+from ..imaging.images import save_scan_images, scan_photos
+from ..models import (
     GROUP_COLUMN,
     INVALID_POINTS,
     OutputFolders,
@@ -46,8 +47,8 @@ from .models import (
     ScanResult,
     Settings,
 )
-from .readers import check_scans, find_scan_folders, load_true_depth, read_scans
-from .scans import assign_scans, resolve_settings, true_depth_template
+from ..readers import check_scans, find_scan_folders, load_true_depth, read_scans
+from ..scans import assign_scans, resolve_settings, true_depth_template
 
 log = logging.getLogger("itraxpy")
 
